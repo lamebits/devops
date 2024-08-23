@@ -1,0 +1,478 @@
+
+When Vim Command not working
+sed -i 's/10.2.1.0/8888/' /etc/resolv.conf 
+
+--------------------------- Installing Package Using Bash Script ------------------------------
+
+// Using Variable Declaration and Command Line Argument
+
+1. vim webscript.sh
+2. #!/bin/bash
+
+#Variable Declaration
+PACKAGE="wget unzip httpd"
+SVC="httpd"
+#URL="https://www.tooplate.com/zip-templates/2098_health.zip"
+#ART_NAME="2098_health"
+TEMPDIR="/tmp/webfiles"
+
+
+#Installing Dependencies
+echo "##########################################################################"
+echo "Installing Package"
+echo "##########################################################################"
+sudo yum install $PACKAGE -y > /dev/null
+echo
+
+# Start and Enable Service
+echo "##########################################################################"
+echo "Start HTTPD Service"
+echo "##########################################################################"
+sudo systemctl start $SVC
+sudo systemctl enable $SVC
+echo
+
+# Create Directory
+echo "##########################################################################"
+echo "Starting artifact deployment"
+echo "##########################################################################"
+mkdir -p $TEMPDIR
+cd $TEMPDIR
+echo
+
+# Download Zip File from Browser
+echo "##########################################################################"
+echo "Download Health Portal Zip file"
+echo "##########################################################################"
+#wget $URL> /dev/null
+wget $1> /dev/null
+#unzip $ART_NAME.zip > /dev/null
+unzip $2.zip > /dev/null
+echo
+
+#sudo cp -r $ART_NAME/* /var/www/html/
+sudo cp -r $2/* /var/www/html/
+echo
+
+# Restart Service
+echo "##########################################################################"
+echo "Restarting HTTPD Service"
+echo "##########################################################################"
+sudo systemctl restart $SVC
+echo
+
+# Cleanup Activities
+echo "##########################################################################"
+echo "Removing Temporary files"
+echo "##########################################################################"
+rm -rf $TEMPDIR
+echo
+
+sudo systemctl status $SVC
+ls /var/www/html
+
+3 chmod +x /opt/script/webscript.sh
+4. Run script 
+	Relative Path : ./webscript.sh
+	Absolute Path : /opt/scripts/webscript.sh
+	Using CMD : ./webscript.sh https://www.tooplate.com/zip-templates/2098_health.zip 2098_health
+
+------------------------------------Exporting Variable---------------------------------------
+* Check file in path "/opt/scripts"
+* Check hidden file "ls -a" command 
+
+For root user access write export command in ".bashrc" file
+	export variablename="Hello World"
+For global access of variable use export command in "/etc/profile" file
+	export variablename="Hello World"
+
+------------------------------------User Input ----------------------------------------------
+#!/bin/bash
+
+echo "Enter your skill:"
+read SKILL
+
+echo "Your $SKILL is highly depand."
+
+read -p 'Username: ' USR
+read -sp 'Password: ' PWD
+
+echo
+echo "Login Successfully by $USR"
+
+-----------------------------------Decision Making --------------------------------------------
+**If Statement**
+
+#!/bin/bash
+
+read -p "Enter a number: " NUM
+echo
+
+if [ $NUM -gt 100 ]
+  then
+        echo "You have entered in IF Block"
+        sleep 3
+        echo "Your Number is greater than 100"
+        date
+else
+        echo "You have entered number less than 100"
+fi
+
+echo "Script Execution Completed Successfully"
+
+** IF ElseIF Statement **
+
+#!/bin/bash
+
+value=$(ip addr show | grep -v LOOPBACK | grep -ic mtu)
+if [ $value -eq 1 ]
+then
+        echo "1 Active Network Interface Found."
+elif [ $value -gt 1 ]
+then
+        echo "Found Multiple Active Interfaces."
+else
+        echo "No Active Interface Found."
+fi
+
+***********Operators in Bash Script **************
+
+1. Arithmetic Operators
+These are used for performing basic arithmetic operations.
+
+Operator	Description		Example
++		Addition		echo $((3 + 2))
+-		Subtraction		echo $((3 - 2))
+*		Multiplication		echo $((3 * 2))
+/		Division		echo $((3 / 2))
+%		Modulus (remainder)	echo $((3 % 2))
+**		Exponentiation		echo $((3 ** 2))
+
+2. Comparison Operators
+These are used for comparing numbers.
+
+Operator	Description		Example
+-eq		Equal to		[[ $a -eq $b ]]
+-ne		Not equal to		[[ $a -ne $b ]]
+-lt		Less than		[[ $a -lt $b ]]
+-le		Less than or equal to	[[ $a -le $b ]]
+-gt		Greater than		[[ $a -gt $b ]]
+-ge		Greater than or equal to[[ $a -ge $b ]]
+
+3. String Operators
+These are used for comparing strings.
+
+Operator	Description			Example
+=		Equal to			[[ $a = $b ]]
+!=		Not equal to			[[ $a != $b ]]
+-z		String is null (zero length)	[[ -z $a ]]
+-n		String is not null (non-zero length)[[ -n $a ]]
+
+4. Logical Operators
+These are used for combining multiple conditions.
+
+Operator	Description	Example
+&&		Logical AND	[[ $a -gt 0 && $b -gt 0 ]]
+`		`
+!		Logical NOT	[[ ! $a -eq $b ]]
+
+5. File Test Operators
+These are used for testing various properties of files.
+
+Operator	Description		Example
+-e		File exists		[[ -e file.txt ]]
+-f		File is a regular file	[[ -f file.txt ]]
+-d		File is a directory	[[ -d /path/to/dir ]]
+-r		File is readable	[[ -r file.txt ]]
+-w		File is writable	[[ -w file.txt ]]
+-x		File is executable	[[ -x file.sh ]]
+-s		File is not empty (size > 0)	[[ -s file.txt ]]
+
+6. Assignment Operators
+These are used for assigning values to variables.
+
+Operator	Description		Example
+=		Assign value		a=10
++=		Add and assign		a+=5
+-=		Subtract and assign	a-=5
+*=		Multiply and assign	a*=2
+/=		Divide and assign	a/=2
+
+Program : Check if process is running else start thr process and schedule it?
+
+vim montoring_httpd.sh
+
+#!/bin/bash
+
+echo "#################################################################"
+date
+echo
+ls /var/run/httpd/httpd.pid > /dev/null
+
+if [ $? -eq 0 ]
+then
+    echo "HTTPD process is running"
+else
+    echo "HTTPD process is not running"
+    systemctl start httpd
+    if [ $? -eq 0 ]
+    then
+        echo "Process started successfully."
+    else
+        echo "Process starting failed, contact to admin."
+    fi
+fi
+echo "#################################################################"
+echo
+
+#Scheduling process
+
+Run command "centos -e" : used for scheduling the process.
+# MM HH DOM mm DOW
+# 30 20 * * 1-5
+* * * * * /opt/scripts/monitoring.sh &>> /var/log/monitoring_httpd.log
+
+--------------------------------------------Loop--------------------------------------------------
+1. Script to add user using loop?
+
+#!/bin/bash
+
+MYUSERS="alpha beta gamma"
+
+for usr in $MYUSERS
+do
+   echo "Adding user $usr"
+   useradd $usr
+   id $usr
+   echo "###################################"
+done
+
+2. Script to display digits from 0 to 10 by 2?
+
+#!/bin/bash
+
+echo "Bash version ${BASH_VERSION}"
+for i in {0..10..2}
+do
+        echo "Welcome $i times"
+done
+
+While Loop
+
+#!/bin/bash
+
+counter=0
+while [ $counter -le 5 ]
+do
+        echo "Looping......"
+        echo "Value of counter is $counter"
+        counter=$(( $counter + 1 ))
+done
+
+echo "Out of the Loop"
+
+------------------------------------Remote Command Execution--------------------------------------
+
+1. vagrant file having vagrants like scriptbox,web01,web02 and web03	
+	Vagrant.configure("2") do |config|
+
+  config.vm.define "scriptbox" do |scriptbox|
+    scriptbox.vm.box = "geerlingguy/centos7"
+	scriptbox.vm.network "private_network", ip: "192.168.10.12"
+        scriptbox.vm.hostname = "scriptbox"
+	scriptbox.vm.provider "virtualbox" do |vb|
+     vb.memory = "1024"
+   end
+  end
+
+  config.vm.define "web01" do |web01|
+    web01.vm.box = "geerlingguy/centos7"
+	web01.vm.network "private_network", ip: "192.168.10.13"
+        web01.vm.hostname = "web01"
+  end
+  
+  config.vm.define "web02" do |web02|
+    web02.vm.box = "geerlingguy/centos7"
+	web02.vm.network "private_network", ip: "192.168.10.14"
+        web02.vm.hostname = "web02"
+  end
+
+   config.vm.define "web03" do |web03|
+    web03.vm.box = "ubuntu/bionic64"
+        web03.vm.network "private_network", ip: "192.168.10.15"
+        web03.vm.hostname = "web03"
+  end
+end
+
+2. Login with "vagrant ssh scriptbox" command.
+3. Login with root user "sudo -i"
+4. In "/etc/hosts" file add web01,web02 and web03 details like
+	IP 		hostname
+	192.168.10.12   web01
+	192.168.10.13   web02
+	192.168.10.14   web03
+5. Verify using ping hostname in vagrant scriptbox root user.
+6. login using ssh vagrant@web01
+	a. useradd devops
+	b. password devops
+	c. visudo - add line as "devops ALL=(ALL) NOPASSWD: ALL"
+7. do it for all hostnames
+8. check for all hostname using "ssh vagrant@web01" command.
+9. check for ssh devops@web01 uptime but it is asking password everytime so go for Key Exchange.
+10 Key Exchange:
+	a. ssh key-gen
+	b. ssh-copy-id devops@web01
+	c. do it for all hostnames.
+11. Again check "ssh devops@web01 uptime" command it will run without asking the password
+	ssh devops@web01 uptime
+		OR
+	ssh -i .ssh/id_rsa devops@web01 uptime
+
+------------------------------------------Remote Websetups for Centos and Ubunto--------------------------------------------
+
+1. Use same vagrant file
+2. cd /opt/scripts
+2. make a directory remote_websteups "mkdir remote_websteups"
+3. vim remote_host
+	web01
+	web02
+	web03
+4. use webscript_var.sh where httpd installation command present for centos.
+5. rename "mv webscript_var.sh multios_websetups.sh".
+6. vim mutlios_websetups.sh
+	#!/bin/bash
+
+#Variable Declaration
+#PACKAGE="wget unzip httpd"
+#SVC="httpd"
+URL=" https://www.tooplate.com/zip-templates/2098_health.zip"
+ART_NAME="2098_health"
+TEMPDIR="/tmp/webfiles"
+
+yum --help &>> /dev/null
+
+if [ $? -eq 0 ]
+then
+        PACKAGE="wget unzip httpd"
+        SVC="httpd"
+
+        echo "Running Centos Script"
+
+        #Installing Dependencies
+        echo "##########################################################################"
+        echo "Installing Package"
+        echo "##########################################################################"
+        sudo yum install $PACKAGE -y > /dev/null
+        echo
+
+        # Start and Enable Service
+        echo "##########################################################################"
+        echo "Start HTTPD Service"
+        echo "##########################################################################"
+        sudo systemctl start $SVC
+        sudo systemctl enable $SVC
+        echo
+
+        # Create Directory
+        echo "##########################################################################"
+        echo "Starting artifact deployment"
+        echo "##########################################################################"
+        mkdir -p $TEMPDIR
+        cd $TEMPDIR
+        echo
+
+        # Download Zip File from Browser
+        echo "##########################################################################"
+        echo "Download Health Portal Zip file"
+        echo "##########################################################################"
+        wget $URL> /dev/null
+        unzip $ART_NAME.zip > /dev/null
+        echo
+
+        sudo cp -r $ART_NAME/* /var/www/html/
+        echo
+
+        # Restart Service
+        echo "##########################################################################"
+        echo "Restarting HTTPD Service"
+	echo "##########################################################################"
+        sudo systemctl restart $SVC
+        echo
+    else
+
+        echo "Running Ubunto Script"
+
+         PACKAGE="wget unzip apache2"
+        SVC="apache2"
+
+
+        #Installing Dependencies
+        echo "##########################################################################"
+        echo "Installing Package"
+        echo "##########################################################################"
+        sudo apt update
+        sudo apt install $PACKAGE -y > /dev/null
+        echo
+
+        # Start and Enable Service
+        echo "##########################################################################"
+        echo "Start HTTPD Service"
+        echo "##########################################################################"
+        sudo systemctl start $SVC
+        sudo systemctl enable $SVC
+        echo
+
+        # Create Directory
+        echo "##########################################################################"
+        echo "Starting artifact deployment"
+        echo "##########################################################################"
+        mkdir -p $TEMPDIR
+        cd $TEMPDIR
+        echo
+
+        # Download Zip File from Browser
+        echo "##########################################################################"
+        echo "Download Health Portal Zip file"
+        echo "##########################################################################"
+        wget $URL> /dev/null
+        unzip $ART_NAME.zip > /dev/null
+        echo
+
+        sudo cp -r $ART_NAME/* /var/www/html/
+        echo
+
+        # Restart Service
+        echo "##########################################################################"
+        echo "Restarting HTTPD Service"
+        echo "##########################################################################"
+        sudo systemctl restart $SVC
+        echo
+
+     fi
+     # Cleanup Activities
+     echo "##########################################################################"
+     echo "Removing Temporary files"
+     echo "##########################################################################"
+     rm -rf $TEMPDIR
+     echo
+     sudo systemctl status $SVC
+     ls /var/www/html
+7. create webdeploy.sh "vim webdeploy.sh"
+	#!/bin/bash
+
+	USR=devops
+
+	for host in `cat remote_host`
+	do
+        	echo "Connecting to $host"
+        	echo "Pushing script to host"
+        	scp multios_webstep.sh $USR@$host:/tmp/
+        	echo "Executing script on $host"
+        	ssh $USR@$host sudo /tmp/multios_webstep.sh
+        	ssh $USR@$host sudo rm -rf /tmp/multios_webstep.sh
+
+	done
+8. chmod +x webdeploy.sh
+9. Run : ./webdeploy.sh
+
+
