@@ -1,0 +1,30 @@
+For CloudWatch settign Alarm
+
+1. Create Instance
+2. It should be in runnign state
+3. Go to git bash
+	a. ssh -i "key.pem" ec2-user@ip
+	b. sudo -i : root user
+	c. Install stress
+		
+		#STRESS Installation
+		# Centos
+			sudo yum install epel-release -y
+			sudo yum install stress -y
+
+		#Amazon Linux 2
+			sudo amazon-linux-extras install epel -y
+			sudo yum install stress -y
+
+		# Ubuntu
+			sudo apt update
+			sudo apt install stress -y
+
+		# stress command
+			stress -c 4 -t 60 && sleep 60 && stress -c 4 -t 60 && sleep 60 && stress -c 4 -t 360 && sleep  && stress -c 4 -t 460 && sleep 30 && stress -c 4 -t 360 && sleep 60
+4. Go to AWS
+	a. Enabled Monitoring Details setting
+	b. Go to AWS Cloude Watch
+	c. Create Alarm
+	d. set Email SNS and condition like CPU utilization >= 60 then trigger email
+5. If CPU>=60 it will trigger the ALarm and send email.
