@@ -1,0 +1,28 @@
+ssh -i "web-dev-key.pem" ec2-user@ec2-35-168-3-4.compute-1.amazonaws.com
+
+ss -tunlp | grep 80
+
+sudo apt update
+sudo apt install apache2 wget unzip -y
+sudo wget https://www.tooplate.com/zip-templates/2128_tween_agency.zip
+sudo unzip 2128_tween_agency.zip
+sudo cp -r 2128_tween_agency/* /var/www/html/
+sudo systemctl restart apache2
+sudo systemctl status apache2
+
+-------------------AWS CLI[Command Line Interface]-----------------------
+
+1. Install AWS CLI
+	choco install awscli --force in Windows PowerShell
+2. Create User awscli using IAM
+3. Create Secreat Key
+4. In Git Bash
+	1. aws configure
+		a. AWS Access Key
+		b. AWS Secret Access Key
+		c. Region : us-east-1
+		d. Output Format : json
+5. now .aws folder created
+	a. ls ~/.aws/ run command, two files config and credentials
+6. aws sts get-caller-identity
+7. aws ec2 describe-instances
