@@ -1,0 +1,101 @@
+1. for using pip command 
+	a. curl https://bootstrap.pypa.io/pip/2.7/get-pip.py -o get-pip.py
+	b. python get-pip.py
+
+2. pip install 'fabric<2.0'
+3. mkdir fabric
+4. cd fabric/
+5. vim fabfile.py
+	from fabric.api import *
+	def greeting(msg):
+    		print "Good %s" % msg
+
+	def system_info():
+    		print "Disk Space"
+    		local("df -h")
+
+	        print "RAM Size"
+    		local("free -m")
+
+		print "System uptime"
+    		local("uptime")
+	#Remote Machine
+	def remote_exec():
+		run("hostname")
+		run("df -h")
+		run("free -m")
+		run("uptime")
+
+6. fab -l
+7. fab function_name:argument [fab greeting:Morning] / fab system_info
+8. Login with remote machine web01
+9. vagrant ssh web01
+10. sudo -i
+
+----Do it for web01 and web02 remote machines----
+
+11. useradd devops
+12. passwd devops
+13. visudo
+	## Allow root to run any commands anywhere
+	root    ALL=(ALL)       ALL
+	devops  ALL=(ALL)       NOPASSWD: ALL
+14. vi /opt/ssh/sshd_config
+	PasswordAuthentication yes
+15. systemctl restart sshd
+
+16. login to scriptbox : vagrant ssh scriptbox
+17. sudo -i
+18. ssh user@ip[ssh devops@192.168.10.3]
+19. enter password
+20. sudo -i
+21. without password based login:
+	a. ssh-keygen
+	b. ssh-copy-id username@ip
+22. cd /opt/pyscripts/fabric
+23. fab -l
+24. fab -H username@ip -u username function_name
+	fab -H devops@192.168.10.3 -u devops remote_exec
+25. Add below statement in vim fabfile.py
+	sudo("yum install mariadb-server -y")
+	sudo("systemctl start mariadb")
+	sudo("systemctl enable mariadb")
+
+----Website setup remotly-----
+
+26. Add following function in vim fabfile.py
+
+def web_setup(WEBURL, DIRNAME):
+
+    print "#############################################"
+    local("apt install zip unzip -y")
+
+    print "#############################################"
+    print "Installing dependencies"
+    print "#############################################"
+    sudo("yum install httpd wget unzip -y")
+
+    print "#############################################"
+    print "Start and Enable HTTPD Service"
+    print "#############################################"
+    sudo("systemctl start httpd")
+    sudo("systemctl enable httpd")
+
+    print "#############################################"
+    print "Downloading and publishing website to the server"
+    print "#############################################"
+    local(("wget -0 website.zip %s") % WEBURL)
+    local("unzip -o website.zip")
+
+    with lcd(DIRNAME):
+        local("zip -r tooplate.zip *")
+        put("tooplate.zip", "/var/www/html/", use_sudo = True)
+
+    with cd("/var/www/html/"):
+        sudo("unzip -o tooplate.zip")
+
+    sudo("systemctl restart httpd")
+
+    print "Website setup done successfully."
+
+27. fab -H devops@192.168.10.4 -u devops web_setup:https://www.tooplate.com/zip-templates/2121_wave_cafe.zip,2121_wave_cafe

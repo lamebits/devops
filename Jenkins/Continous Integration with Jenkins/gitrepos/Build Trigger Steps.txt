@@ -1,0 +1,59 @@
+1. Create git repository.
+2. Clone git repository in folder.
+3. Copy public key in github account SSH Key Account setting: 
+	-> ssh-keygen.exe
+	-> cat ~/.ssh/keyname.pub
+4. Create PipelineCode
+pipeline{
+	agent any
+	stages{
+		stage('Build'){
+			steps{
+				sh 'echo "Build Completed"'
+			}
+		}
+	}
+}
+5. Save file as Jenkinfile and upload in github:
+	-> git clone gitsshurl
+	-> git add .
+	-> git commit -m "message"
+	-> git push origin main
+6. Create job in jenkins:
+	-> username
+	-> private key
+	-> Jenkinsfile
+7. Run the pipeline
+
+######## Popular Triggers ########
+
+1. Git Webhook:
+	a. Open Git repository setting
+	b. Select Webhook
+	c. Paste jenkinslink
+		http://0.0.0.0:8080/github-webhook/
+	d. Content-Type : Json
+	e. Select Event Trigger : Just the push event
+	f. Save
+	g. Add some file in git repo folder then automatically trigger the job in jenkins.
+
+2. POLL SCM:
+	As per configuration in jenkins job like Minute Hours DOM Month DOW, will trigger
+
+3. Scheduled Job:
+	Will schedule job based on buidl trigger periodically set in configuration.
+
+4. Remote Triggers:
+	-> In Job Configuration enable Trigger build remotely
+		Job url = http://44.220.248.165:8080/job/Gitbuild/build?token=mybuildtoken
+	-> Jenkins Account configuration API token:
+		Token = admin:11cbf661b868cad743be620bafd22273bc
+	-> CRUMB
+wget -q --auth-no-challenge --user=admin --password=admin --output-document - 'http://44.220.248.165:8080/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)'
+	-> Download Wget gitbash -> Extract wget.exe file in C->ProgramFile->Git->Mingw64->bin
+	-> Open Gitbash and execute CRUMB command and copy
+		Jenkins-Crumb:fe41d5a26aa2669b786347919cc0fb4eaf87aac4ed9746249d73bae4e52890f9
+	-> Curl Command
+		Format: curl -I -X POST http://username:APItoken@Jenkins_IP:8080/job/JOB_NAME/build?token=TOKENNAME -H "Jenkins-Crumb:CRUMB"
+			curl -I -X POST http://admin:11cbf661b868cad743be620bafd22273bc@44.220.248.165:8080/job/Gitbuild/build?token=mybuildtoken -H "Jenkins-Crumb:fe41d5a26aa2669b786347919cc0fb4eaf87aac4ed9746249d73bae4e52890f9"
+	-> Run Curl command from anywhere in gitbash
