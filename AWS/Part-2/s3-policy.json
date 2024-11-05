@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::027434742980:root"
+      },
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::wave-cafe-bucket/wave-cafe-s3/AWSLogs/012345678912/*"
+    }
+  ]
+}
