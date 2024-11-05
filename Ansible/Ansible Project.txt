@@ -1,0 +1,467 @@
+
+Ansible Documentation Link : https://docs.ansible.com/ansible/latest/
+
+############################## ANSIBLE SETUP ###############################
+
+1. Create EC2 instances
+	1. One for Control - Unbuntu
+	2. Two for servers - Centos
+	3. one for database - Centos
+
+`/.ssh/known_hosts : will store the ssh fingerprint
+
+2. Install Ansible on Control EC2 instance
+	$ sudo apt update
+	$ sudo add-apt-repository --yes --update ppa:ansible/ansible
+	$ sudo apt install ansible
+
+3. Inventory and Ping Module
+	1. create inventory file
+	Code -> all:
+  		  hosts:
+                    web01:
+                      ansible_host: 172.31.90.22[private IP]
+                      ansible_user: ec2-user
+                      ansible_ssh_private_key_file: client-key.pem
+		    web02:
+                      ansible_host: 172.31.94.95[private IP]
+                      ansible_user: ec2-user
+                      ansible_ssh_private_key_file: client-key.pem
+		    db01:
+                      ansible_host: 172.31.87.19[private IP]
+                      ansible_user: ec2-user
+                      ansible_ssh_private_key_file: client-key.pem
+		 children:
+		    webservers: //group of servername
+		      hosts:
+			web01:
+			web02:
+		    dbservers:
+		      hosts:
+			db01
+		    dc_oregon: // group of all servers
+		      children:
+			webservers:
+			dbservers:
+
+		2nd Method:
+			all:
+  			  hosts:
+    			    web01:
+      			      ansible_host: 172.31.90.22
+                            web02:
+                              ansible_host: 172.31.94.95
+                            db01:
+                              ansible_host: 172.31.87.19
+
+                          children:
+                            webservers:
+                              hosts:
+                                web01:
+                                web02:
+
+                            dbservers:
+                              hosts:
+                                db01:
+
+                            dc_oregon:
+      			      children:
+                                webservers:
+                                dbservers:
+                              vars:	//Write common statment which are used for all servers.
+                                ansible_user: ec2-user
+                                ansible_ssh_private_key_file: client-key.pem
+
+	2. cat vprofile-key.pem copy key and paste it into client-key.pem
+	3. sudo -i
+	4. mv ansible.cfg ansible.cfg_backup
+	5. ansible-config init --disabled -t all > ansible.cfg
+	6. vim ansible.cfg -> host_key_checking=False
+	7. chmod 400 client-key.pem
+	8. ansible <servername/groupname/all/'*'/'web*'> -m ping -i <inventory_filename>
+	   ansible web01 -m ping -i inventory
+	   ansible web02 -m ping -i inventory
+	   ansible db01 -m ping -i inventory
+* group level hosts has lower priority then host level.
+
+############ Ad hoc command in Ansible ##############
+
+Configuration management maintain the state of target
+
+* ansible webservers -m  ansible.builtin.yum -a "name=httpd state=present" -i inventory --become
+
+//--become, allow user to run the command with elevated permission such as sudo
+
+* ansible webservers -m  ansible.builtin.yum -a "name=httpd state=absent" -i inventory --become
+* ansible webservers -m  ansible.builtin.service -a "name=httpd state=started enabled=yes" -i inventory --become
+* ansible webservers -m  ansible.builtin.copy -a "src=index.html dest=/var/www/html/index.html" -i inventory --become
+
+############################## PLAYBOOK ##################################
+
+- name: WebServer Setup
+  hosts: webservers
+  become: yes
+  tasks:
+   - name: Install httpd
+     ansible.builtin.yum:
+      name: httpd
+      state: present
+
+   - name: Start httpd service
+     ansible.builtin.service:
+       name: httpd
+       state: started
+       enabled: yes
+
+- name: DBServer Setup
+  hosts: dbservers
+  become: yes
+  tasks:
+    - name: Install mariadb-server
+      ansible.builtin.yum:
+        name: mariadb-server
+        state: present
+
+    - name : Start mariadb service
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+* ansible-playbook -i inventory web-db.yaml -v
+		-v, -vv,-vvv,-vvvv(verbose) use for debuging
+* Check syntax : ansible-playbook -i inventory web-db.yaml --syntax-check 
+* Dry Run : ansible-playbook -i inventory web-db.yaml -C [not exact execution]
+
+############################## MODULES #####################################
+
+1. Copy Module:
+
+   - name: Copy index file
+     copy:
+      src: files/index.html
+      dest: /var/www/html/index.html
+      backup: yes
+
+2. Create database Module
+
+ Run command: ansible-playbook -i inventory web-db.yaml
+
+- name: DBServer Setup
+  hosts: dbservers
+  become: yes
+  tasks:
+    - name: Install mariadb-server
+      ansible.builtin.yum:
+        name: mariadb-server
+        state: present
+
+    - name : Install Python Mysql Dependency
+      ansible.builtin.yum:
+        name: python3-PyMySQL
+        state: present
+
+    - name : Start mariadb service
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Create new database named as accounts
+      mysql_db:
+        name: accounts
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Create user in database
+      community.mysql.mysql_db:
+        name: vprofile
+        login_password: 'admin123'
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+
+####################### Create your own ansible.cfg file ##########################
+
+* default ansible config file present in /etc/ansible/ansible.cfg
+
+ansible.cfg
+
+[defaults]
+host_key_checking=False
+inventory = ./inventory
+forks = 5
+log_path = /var/log/ansible.log
+
+[privilege_escalation]
+become=True
+become_method=sudo
+become_ask_pass=False
+
+- run inventory yaml file command:
+	ansible-playbook web-db.yaml
+
+########################### VARIABLE  and DEBUG ###############################
+- mkdir group_vars
+- vim group_vars/all
+- vim group_vars/group_name(webservers,dbservers)
+	dbname: sky
+	dbuser: pilot
+	dbpass: aircraft	
+
+// Playbook variable scope is higher priority then global decalare variables.
+
+// Passing variable using commandline
+	ansible-playbook -e dbname=playbook -e dbuser=action -e dbpass=admin@123 web-db.yaml
+//Priority precendence:
+	commandline argument >> Playbook variable >> Hostname >> Groupname >> all files
+
+
+- name: DBServer Setup
+  hosts: dbservers
+  become: yes
+  vars:				// Declaration of Variable
+    dbname: electric
+    dbuser: current
+    dbpass: tesla
+  tasks:
+    - debug:				//Debug to print message
+        msg: "{{dbname}}"
+    - debug:
+        var: dbuser
+    - name: Install mariadb-server
+      ansible.builtin.yum:
+        name: mariadb-server
+        state: present
+
+    - name : Install Python Mysql Dependency
+      ansible.builtin.yum:
+        name: python3-PyMySQL
+        state: present
+
+    - name : Start mariadb service
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Create new database
+      community.mysql.mysql_db:
+        name: "{{dbname}}"
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+
+    - name: Create user in database
+      community.mysql.mysql_db:
+        name: "{{dbuser}}"
+        login_password: "{{dbpass}}"
+        state: present
+        login_unix_socket: /var/lib/mysql/mysql.sock
+      register: dbout
+
+    - name: print db output			// print or store the output in dbout variable
+      debug:
+        var: dbout
+
+########################### FACT VARIABLE ################################
+print_facts.yaml
+- name: Print Facts
+  hosts: all
+    #gather_facts: False
+  tasks:
+    - name: Print OS name
+      debug:
+        var: ansible_distribution
+    - name: Print selinux mode
+      debug:
+        var: ansible_selinux.mode
+    - name: Print memory
+      debug:
+        var: ansible_memory_mb.real.free
+    - name: Print processor name
+      debug:
+        var: ansible_processor[2]
+
+- ansible-playbook print_facts.yaml
+
+############################### Decision Making #############################
+
+- name: Provisioning
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install ntp on Centos
+      yum:
+       name: chrony
+       state: present
+      when: ansible_distribution == "CentOS" //Condition
+
+    - name: Install ntp on Ubuntu
+      apt:
+        name: ntp
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Start service on centos
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      when: ansible_distribution == "CentOS"
+
+    - name: Start service on Ubuntu
+      service:
+        name: ntp
+        state: started
+        enabled: yes
+      when: ansible_distribution == "Ubuntu"
+
+################################# Loop ####################################
+
+- name: Provisioning
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install ntp on Centos
+      yum:
+       name: "{{item}}"
+       state: present
+      when: ansible_distribution == "CentOS"
+      loop:					//Loop
+        - chrony
+        - zip
+        - unzip
+        - git
+    - name: Install ntp on Ubuntu
+      apt:
+        name: "{{item}}"
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+      loop:
+          - ntp
+          - zip
+          - unzip
+          - git
+
+    - name: Start service on centos
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      when: ansible_distribution == "CentOS"
+
+    - name: Start service on Ubuntu
+      service:
+        name: ntp
+        state: started
+        enabled: yes
+      when: ansible_distribution == "Ubuntu"
+
+######################### File, Copy and Templates Modules and Handlers########################
+
+1. mkdir templates
+2. create ntpconf_centos file in templates folder
+3. switch to root user of centos machine and type cat /etc/chrony.conf
+4. copy annd text and save it into ntpconf_centos.
+5. create ntpconf_ubuntu file in templates folder
+6. switch to root user of ubuntu machine and type cat /etc/ntpsec/ntp.conf
+7. copy text and save it into ntpconf_ubuntu.
+8. Edit group_vars/all file
+
+USRNM: Actions
+COMM: variables from all groups
+ntp0: 0.amazon.pool.ntp.org
+ntp1: 1.amazon.pool.ntp.org
+ntp2: 2.amazon.pool.ntp.org
+ntp3: 3.amazon.pool.ntp.org
+
+ntpconf_centos:  pool "{{ntp0}}" iburst
+
+-> Handlers: handler will execute only when ever any change comes.
+
+-> provisioning.yaml file
+- name: Provisioning
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install ntp on Centos
+      yum:
+       name: "{{item}}"
+       state: present
+      when: ansible_distribution == "CentOS"
+      loop:
+        - chrony
+        - zip
+        - unzip
+        - git
+    - name: Install ntp on Ubuntu
+      apt:
+        name: "{{item}}"
+        state: present
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+      loop:					//Looping
+          - ntp
+          - zip
+          - unzip
+          - git
+
+    - name: Start service on centos
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      when: ansible_distribution == "CentOS"
+
+    - name: Start service on Ubuntu
+      service:
+        name: ntp
+        state: started
+        enabled: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Banner File
+      copy:
+        content: "This server is managed by ansible. No manual changes please"
+        dest: /etc/motd
+
+    - name: create a folder
+      file:
+        path: /opt/test123
+        state: directory
+
+ - name: Deploy ntp agent config on centos
+      template:
+        src: templates/ntpconf_centos
+        dest: /etc/chrony.conf
+        backup: yes
+      when: ansible_distribution == "CentOS"
+      notify:
+        - Restart service on centos
+
+    - name: Deploy ntp agent config on ubuntu
+      template:
+        src: templates/ntpconf_ubuntu
+        dest: /etc/ntpsec/ntp.conf
+        backup: yes
+      when: ansible_distribution == "Ubuntu" 	//Condition
+      notify:				
+        - Restart service on Ubuntu			//Handlers name
+
+  handlers:				// execute if any changes
+    - name: Restart service on centos
+      service:
+        name: chronyd
+        state: restarted
+        enabled: yes
+      when: ansible_distribution == "CentOS"
+
+    - name: Restart service on Ubuntu
+      service:
+        name: ntp
+        state: restarted
+        enabled: yes
+      when: ansible_distribution == "Ubuntu"
+                                                      
