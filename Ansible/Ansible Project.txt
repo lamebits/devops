@@ -464,4 +464,245 @@ ntpconf_centos:  pool "{{ntp0}}" iburst
         state: restarted
         enabled: yes
       when: ansible_distribution == "Ubuntu"
-                                                      
+
+############################### ROLES ##############################
+
+1. Install tree : sudo apt intsall tree -y
+2.  tree excercise14(dir name) - Will show the directory structure in tree format.
+
+excercise14
+├── ansible.cfg
+├── clientkey.pem
+├── files
+│   └── myfile.txt
+├── group_vars
+│   ├── all
+│   └── webservers
+├── host_vars
+│   └── web02
+├── inventory
+├── provisioning.yaml
+└── templates
+    ├── ntpconf_centos
+    └── ntpconf_ubuntu
+
+3. mkdir roles
+4. cd roles
+5. ansible-galaxy init post-install(roles name)
+
+└── post-install
+    ├── README.md
+    ├── defaults
+    │   └── main.yml
+    ├── files
+    ├── handlers
+    │   └── main.yml
+    ├── meta
+    │   └── main.yml
+    ├── tasks
+    │   └── main.yml
+    ├── templates
+    ├── tests
+    │   ├── inventory
+    │   └── test.yml
+    └── vars
+        └── main.yml
+
+
+└── post-install
+    ├── README.md
+    ├── defaults
+    │   └── main.yml
+		# Default vars for post-install		// also declare this in vars directory
+		USRNM: Actions
+		COMM: variables from all groups
+		ntp0: 0.amazon.pool.ntp.org
+		ntp1: 1.amazon.pool.ntp.org
+		ntp2: 2.amazon.pool.ntp.org
+		ntp3: 3.amazon.pool.ntp.org
+		mydir: /opt/dir22
+
+    ├── files
+		myfiles.txt
+    ├── handlers
+    │   └── main.yml	
+		# Handlers files for post-install
+		- name: Restart service on centos
+ 		  service:
+   		    name: chronyd
+    		    state: restarted
+    		    enabled: yes
+  		  when: ansible_distribution == "CentOS"
+
+		- name: Restart service on Ubuntu
+  		  service:
+   		    name: ntp
+    		    state: restarted
+    		    enabled: yes
+  		when: ansible_distribution == "Ubuntu"
+
+    ├── meta
+    │   └── main.yml
+    ├── tasks
+    │   └── main.yml
+		# Tasks for post-install role
+		- name: Install ntp on Centos
+  		    yum:
+     		    name: "{{item}}"
+   		    state: present
+  		    when: ansible_distribution == "CentOS"
+  		    loop:
+    		        - chrony
+                                                   - zip
+    		        - unzip
+    		        - git
+		- name: Install ntp on Ubuntu
+  		  apt:
+    		      name: "{{item}}"
+    		      state: present
+    		      update_cache: yes
+  		  when: ansible_distribution == "Ubuntu"
+  		  loop:
+      		      - ntp
+      		      - zip
+      		      - unzip
+      		      - git
+
+		- name: Start service on centos
+  		  service:
+    		      name: chronyd
+    		      state: started
+    		      enabled: yes
+  		  when: ansible_distribution == "CentOS"
+
+		- name: Start service on Ubuntu
+  		  service:
+    		     name: ntp
+    		     state: started
+    		     enabled: yes
+  		  when: ansible_distribution == "Ubuntu"
+
+		- name: Banner File
+  		  copy:
+    		      content: "This server is managed by ansible. No manual changes please"
+    		     dest: /etc/motd
+
+		- name: create a folder
+ 		     file:
+    		     path: "{{mydir}}"
+    		     state: directory
+
+		- name: Deploy ntp agent config on centos
+ 		  template:
+    		      src: ntpconf_centos.j2
+    		     dest: /etc/chrony.conf
+    		     backup: yes
+  		  when: ansible_distribution == "CentOS"
+  		  notify:
+    		      - Restart service on centos
+
+		- name: Deploy ntp agent config on ubuntu
+ 		 template:
+    		     src: ntpconf_ubuntu.j2
+    		    dest: /etc/ntpsec/ntp.conf
+    		    backup: yes
+  		 when: ansible_distribution == "Ubuntu"
+  		 notify:
+    		     - Restart service on Ubuntu
+
+		- name: dump file
+  		  copy:
+    		      src: myfile.txt
+    		      dest: /tmp/myfile.txt
+
+
+		
+    ├── templates
+		ntpconf_centos.j2,  ntpconf_ubuntu.j2
+
+    ├── tests
+    │   ├── inventory
+    │   └── test.yml
+    └── vars
+        └── main.yml
+
+6. Default Ansible Galaxy roles
+1. System
+2. Monitoring
+3. Development
+4. Packaging
+5. Networking
+6. Playbooks Bundles
+7. Cloud
+8. Security
+9. Database
+10. Web
+
+######################## ANSIBLE AWS ################################
+
+1. Create IAM user for AccessKey
+2. vim .bashrc
+	export AWS_ACCESS_KEY_ID='AK123' 		// replace accesskey of IAM
+	export AWS_SECRET_ACCESS_KEY='abc123' 	//replace secret key of IAM
+3. source .bashrc
+4. mkdir aws
+5. cd aws
+6. vim test.yml
+	hosts: localhost
+	gather_facts: false
+	tasks:
+	  - name: Create Key Pair
+	    amazon.aws.ec2_key:
+    	         name: sample
+	         region: us-east-1
+      	    register: keyout
+                       - name: Display Key
+     	   debug:
+       	        var: keyout
+                      - name: Save Keyout
+                        copy:
+                            content: "{{keyout.key.private_key}}"		//Name would be same
+                            dest: ./sample.pem
+                        when: keyout.changed
+
+7. ansible-playbook test.yml
+8. sudo apt install python3-pip -y
+9.  pip3.12 install boto3 --break-system-packages
+10. Install all amazon aws modules :
+	  ansible-galaxy collection install amazon.aws
+11. Create instance in AWS using Ansible
+
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create Key Pair
+      amazon.aws.ec2_key:
+        name: sample
+        region: us-east-1
+      register: keyout
+
+        #- name: Display Key
+        #debug:
+        #var: keyout
+
+    - name: Save Keyout
+      copy:
+        content: "{{keyout.key.private_key}}"
+        dest: ./sample.pem
+      when: keyout.changed
+
+    - name: start an instance
+      amazon.aws.ec2_instance:
+        name: "public-compute-instance"
+        key_name: "sample"
+        #vpc_subnet_id: subnet-5ca1ab1e
+        instance_type: t2.micro
+        security_group: default
+        #network_interfaces:
+           #- assign_public_ip: true
+        image_id: ami-06b21ccaeff8cd686 		//Amazon AMI ID
+        region: us-east-1
+        exact_count: 1
+        tags:
+          Environment: Testing
+
