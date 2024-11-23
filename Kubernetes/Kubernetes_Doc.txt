@@ -1,0 +1,65 @@
+######################### Setup Minikube #######################
+
+## Dependency => Oracle VM Virtualbox
+## To Setup Chocolaty
+## Open powershell as administrator and execute below command
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+## If getting Error, Turn Off Your Anti Virus for a moment and try again.
+
+## Install Minikube with chocolaty
+## Close powershell and start again with admin
+
+choco install minikube kubernetes-cli -y
+
+## Execute to Setup Minikube cluster
+minikube start
+kubectl.exe get nodes
+
+URL : https://minikube.sigs.k8s.io/docs/start/?arch=%2Fwindows%2Fx86-64%2Fstable%2F.exe+download
+
+kubectl create deployment hello-minikube --image=kicbase/echo-server:1.0
+kubectl.exe get pod
+kubectl expose deployment hello-minikube --type=NodePort --port=8080
+minikube service hello-minikube --url
+kubectl.exe get svc
+delete svc : 
+	kubectl.exe delete svc hello-minikube
+kubectl.exe get deploy 
+kubectl.exe delete deploy hello-minikube
+minikube.exe stop
+minikube.exe delete
+
+######################### Kops for K8s Setup #######################
+
+1. Create Kops AWS Instance.
+2. Create kopsadmin IAM user for CLI.
+3. SSH for Kops to gitbash.
+	1. ssh
+	2. sudo -i
+	3. apt update
+4.  snap install aws-cli --classic
+5. Store the access key which is created using AWS IAM user.
+	-> aws configure
+6. ssh-keygen
+7. ls .ssh/
+8. Install kops 
+curl -Lo kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64
+chmod +x kops
+sudo mv kops /usr/local/bin/kops
+9. kops
+10. Install kubectl binary
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+11. Install kubectl
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+12. verify kubectl installtion
+	-> kubectl version --client
+13. create S3 bucket(kubbucketstate)
+	-> kops create cluster --name=kubedns18.awsdevops.xyz --state=s3://kubebucket --zones=us-east-1a,us-east-1b --node-count=2 --node-size=t3.small --control-plane-size=t3.medium --dns-zone=kubedns18.awsdevops.xyz --node-volume-size=12 --control-plane-volume-size=12 --ssh-public-key ~/.ssh/id_ed25519.pub
+14. Create Route 53 kubedns18.awsdevops.xyz
+
+15. kops update cluster --name=kubedns18.awsdevops.xyz --state=s3://kubebucket --yes --admin
+
+16. kops validate cluster --name=kubedns18.awsdevops.xyz --state=s3://kubebucket
+17. Delete :
+	kops delete cluster --name=kubedns18.awsdevops.xyz --state=s3://kubebucket --yes
+
