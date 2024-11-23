@@ -1,0 +1,236 @@
+Docker Installation
+
+1. Create EC2 instance in AWS for Ubuntu(my IP:22 and All Traffic My IP)
+2. Installation of Docker Engine on Ubuntu
+
+https://docs.docker.com/engine/install/ubuntu/
+
+2.1 Before you can install Docker Engine, you need to uninstall any conflicting packages.
+docker.io
+docker-compose
+docker-compose-v2
+docker-doc
+podman-docker
+
+Run below command:
+-> for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
+
+-> # Add Docker's official GPG key:
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+-> sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+Checking docker service running status
+-> systemctl status docker 
+
+-> docker images
+// by default root user connect to docker deamon and if you want to add any other user then use docker group command
+-> sudo vim /etc/group or sudo usermod -aG docker ubuntu where ubuntu is username
+
+Validate docker
+-> sudo docker run hello-world
+
+Check running container status command:
+-> docker p
+-> docker ps -a
+
+Create Container
+-> docker run
+
+-> docker run --name <name the container> -p host port(cant fixed):container port -d(run in bakground) <docker-imagename>
+example : docker run --name myweb -p 7080:80 -d nginx
+
+-> Validation of Docker EC2 instance
+public IP of docker Ec2 instance: host port number(7080)
+
+-> ps -ef // while show all processes running in OS
+// process id nothing but container
+
+Run commands in container
+->  docker exec -it myweb /bin/bash
+// it : will attached the command with container
+
+Image cant removed directly for running container:
+
+Stop container : docker stop containername
+remove container: docker rm containername
+remove image: docker rmi imagename
+
+Docker Logs
+-> docker logs <containername/imagename>
+
+########################################### Docker Volumns ####################################################
+
+Containers cannot be persist so docker has two options 
+
+1. Volumns: a dicrectory(/var/lib/docker/volumns) can attached to a container
+-> create volume
+	docker volume create <volumename>(mydbdata)
+-> list volume
+	docker volume ls
+
+-> docker run --name vprodb -d -e MYSQL_ROOT_PASSWORD=secretpass -p 3030:3306 -v mydbdata:/var/lib/mysql mysql:5.7
+
+-> sudo -i
+-> ls /var/lib/docker/volumes/mydbdata/_data 
+	if we remove container data still present 
+Verify it
+	->  docker exec -it vprodb mysql -h 127.0.0.1 -u root -psecretpass
+	->  mysql -h 172.17.0.2(IP of container) -u root -psecretpass
+
+
+2. Blind Mounts: Attached local host directory to container.
+
+Example of Bind Mount:
+ 
+1. mkdir vprodbdata
+
+2. docker run -v "$PWD/data":/var/lib/mysql --user 1000:1000 --name some-mysql -e MYSQL_ROOT_PASSWORD=my-secret-pw -d mysql:tag
+-> docker run --name vprodb -d -e MYSQL_ROOT_PASSWORD=secretpass -p 3030:3306 -v /home/ubuntu/vprodbdata:/var/lib/mysql mysql:5.7
+
+3. ls vproddata
+4. verify it:
+	1. login to container using below command
+		-> docker exec -it vprodb /bin/bash
+	2. ls /var/lib/mysql/
+	if we remove container data still present
+
+
+########################################## Building DockerFile ##################################################
+
+FROM
+LABEL
+RUN
+ADD/COPY
+CMD
+ENTRYPOINT
+VOLUME
+EXPOSE
+ENV
+USER
+WORKDIR
+ARG
+ONBUILD
+
+1. mkdir images
+2. wget get html doc from tooplate site
+3. sudo apt install unzip -y
+4. mkdir finance
+5. tar czvf finance.tar.gz *
+6. mv tar file to finance folder
+7. vim Dockerfile
+	
+	FROM ubuntu:latest
+	LABEL "Username"="Meenal"
+	LABEL "Projectname"="Finance"
+	ENV DEBIAN_FRONTEND=noninteractive
+	RUN apt update && apt install git -y
+	RUN apt install apache2 -y
+	ADD finance.tar.gz /var/www/html
+	CMD ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]
+	EXPOSE 80
+	WORKDIR /var/www/html
+	VOLUME /var/log/apache2
+
+8. docker build -t financeimg .
+	(path of docker file for current path put ".")
+9. docker images
+10. docker run -d --name financewebsite -p 9080:80 financeimg
+11. Verify
+	http://107.23.27.210:9080/ : Public IP of AWS Docker Entance
+Note security group All traffic and myIP
+12. Create Docker Hub Account
+13. docker build -t <dockerhub_accountname>/financeimg .
+13. docker login
+14. docker push <imagename>
+15. docker run -d --name financewebsite -p 9080:80 meenalmate/financeimg
+
+
+##################################### DOCKER COMPOSE #####################################
+
+1. Install docker compose
+->  sudo curl -L "https://github.com/docker/compose/releases/download/v2.30.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+-> sudo chmod +x /usr/local/bin/docker-compose
+-> docker-compose --help
+
+// https://docs.docker.com/compose/gettingstarted/
+
+2. Quick Start watch in above url.
+3. docker compose up -d
+
+1. mkdir composetest
+cd composetest
+2. vim app.py
+import time
+
+import redis
+from flask import Flask
+
+app = Flask(__name__)
+cache = redis.Redis(host='redis', port=6379)
+
+def get_hit_count():
+    retries = 5
+    while True:
+        try:
+            return cache.incr('hits')
+        except redis.exceptions.ConnectionError as exc:
+            if retries == 0:
+                raise exc
+            retries -= 1
+            time.sleep(0.5)
+
+@app.route('/')
+def hello():
+    count = get_hit_count()
+    return 'Hello World! I have been seen {} times.\n'.format(count)
+3. vim requirements.txt
+flask
+redis
+4. vim Dockerfile
+# syntax=docker/dockerfile:1
+FROM python:3.10-alpine
+WORKDIR /code
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+RUN apk add --no-cache gcc musl-dev linux-headers
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+EXPOSE 5000
+COPY . .
+CMD ["flask", "run", "--debug"]
+5. compose.yaml
+services:
+  web:
+    build: .
+    ports:
+      - "8000:5000"
+  redis:
+    image: "redis:alpine"
+6. docker compose up
+7. verfiy : http://127.0.0.1:8000
+
+FROM openjdk:11 AS BUILD_IMAGE
+RUN apt update && apt install maven -y
+RUN git clone https://github.com/devopshydclub/vprofile-project.git
+RUN cd vprofile-project && git checkout docker && mvn install
+
+FROM tomcat:9-jre11
+
+RUN rm -rf /usr/local/tomcat/webapps/*
+
+COPY --from=BUILD_IMAGE vprofile-project/target/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
+
+EXPOSE 8080
+CMD ["catalina.sh", "run"]
