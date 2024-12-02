@@ -1,0 +1,385 @@
+1. Jenkins Server(t2.medium), SonarQube Server(t2.medium) and Kops Server(t2.micro) Setup in Ubuntu EC2 Instance.
+++++++++Jenkins Installtion++++++++++++
+
+sudo apt update
+
+sudo apt install openjdk-11-jdk -y
+
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc]" \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+sudo apt-get update
+
+sudo apt-get install jenkins -y
+
+systemctl status jenkins
+
++++++++++SonarQube Installation++++++++++++++
+
+#!/bin/bash
+cp /etc/sysctl.conf /root/sysctl.conf_backup
+cat <<EOT> /etc/sysctl.conf
+vm.max_map_count=262144
+fs.file-max=65536
+ulimit -n 65536
+ulimit -u 4096
+EOT
+cp /etc/security/limits.conf /root/sec_limit.conf_backup
+cat <<EOT> /etc/security/limits.conf
+sonarqube   -   nofile   65536
+sonarqube   -   nproc    409
+EOT
+
+sudo apt-get update -y
+sudo apt-get install openjdk-11-jdk -y
+sudo update-alternatives --config java
+
+java -version
+
+sudo apt update
+wget -q https://www.postgresql.org/media/keys/ACCC4CF8.asc -O - | sudo apt-key add -
+
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
+sudo apt install postgresql postgresql-contrib -y
+#sudo -u postgres psql -c "SELECT version();"
+sudo systemctl enable postgresql.service
+sudo systemctl start  postgresql.service
+sudo echo "postgres:admin123" | chpasswd
+runuser -l postgres -c "createuser sonar"
+sudo -i -u postgres psql -c "ALTER USER sonar WITH ENCRYPTED PASSWORD 'admin123';"
+sudo -i -u postgres psql -c "CREATE DATABASE sonarqube OWNER sonar;"
+sudo -i -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE sonarqube to sonar;"
+systemctl restart  postgresql
+#systemctl status -l   postgresql
+netstat -tulpena | grep postgres
+sudo mkdir -p /sonarqube/
+cd /sonarqube/
+sudo curl -O https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-8.3.0.34182.zip
+sudo apt-get install zip -y
+sudo unzip -o sonarqube-8.3.0.34182.zip -d /opt/
+sudo mv /opt/sonarqube-8.3.0.34182/ /opt/sonarqube
+sudo groupadd sonar
+sudo useradd -c "SonarQube - User" -d /opt/sonarqube/ -g sonar sonar
+sudo chown sonar:sonar /opt/sonarqube/ -R
+cp /opt/sonarqube/conf/sonar.properties /root/sonar.properties_backup
+cat <<EOT> /opt/sonarqube/conf/sonar.properties
+sonar.jdbc.username=sonar
+sonar.jdbc.password=admin123
+sonar.jdbc.url=jdbc:postgresql://localhost/sonarqube
+sonar.web.host=0.0.0.0
+sonar.web.port=9000
+sonar.web.javaAdditionalOpts=-server
+sonar.search.javaOpts=-Xmx512m -Xms512m -XX:+HeapDumpOnOutOfMemoryError
+sonar.log.level=INFO
+sonar.path.logs=logs
+EOT
+
+cat <<EOT> /etc/systemd/system/sonarqube.service
+[Unit]
+Description=SonarQube service
+After=syslog.target network.target
+
+[Service]
+Type=forking
+
+ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
+ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
+
+User=sonar
+Group=sonar
+Restart=always
+
+LimitNOFILE=65536
+LimitNPROC=4096
+
+
+[Install]
+WantedBy=multi-user.target
+EOT
+
+systemctl daemon-reload
+systemctl enable sonarqube.service
+#systemctl start sonarqube.service
+#systemctl status -l sonarqube.service
+apt-get install nginx -y
+rm -rf /etc/nginx/sites-enabled/default
+rm -rf /etc/nginx/sites-available/default
+cat <<EOT> /etc/nginx/sites-available/sonarqube
+server{
+    listen      80;
+    server_name sonarqube.groophy.in;
+
+    access_log  /var/log/nginx/sonar.access.log;
+    error_log   /var/log/nginx/sonar.error.log;
+
+    proxy_buffers 16 64k;
+    proxy_buffer_size 128k;
+
+    location / {
+        proxy_pass  http://127.0.0.1:9000;
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_redirect off;
+              
+        proxy_set_header    Host            \$host;
+        proxy_set_header    X-Real-IP       \$remote_addr;
+        proxy_set_header    X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto http;
+    }
+}
+EOT
+ln -s /etc/nginx/sites-available/sonarqube /etc/nginx/sites-enabled/sonarqube
+systemctl enable nginx.service
+#systemctl restart nginx.service
+sudo ufw allow 80,9000,9001/tcp
+
+echo "System reboot in 30 sec"
+sleep 30
+reboot
+
+
+++++++++Kops Installation++++++++++++++++
+
+apt update
+snap install aws-cli --classic
+aws configure to store access and secret keys.
+ssh-keygen
+Install Kops
+	curl -Lo kops https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64
+	chmod +x kops
+	sudo mv kops /usr/local/bin/kops
+	kops
+Install kubectl
+	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+kubectl version --client
+
++++++++++++++++++++++++++++++++++++++++++++
+
+2. Generate SonarQube Token and add into jenkins manage jenkins configuration setting.
+3. Install SonarQube Scanner plugin in Jenkins . <sonar-pro><privateip>
+4. Store dockerhub credentials in jenkins credential.
+5. Install docker enginee in jenkin-server ec2 instance.
+
+# Add Docker's official GPG key:
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo docker run hello-world
+
+6. Add jenkins user into docker group
+usermod -aG <groupname> <username>
+usermod -aG docker jenkins
+7. login to jenkin user
+su - jenkins<username>
+docker images 	// now jenkins user able to access docker.
+8. Install Jenkins Plugin
+	a. docker pipeline
+	b. docker
+	c. pipeline utility steps
+	
+9. Install Kubernetes in Kops server EC2 instance
+	a. Create S3 bucket "kubbucketstate"
+		kops create cluster --name=kt8dns.awsdevops.xyz --state=s3://kubbucketstate --zones=us-east-1a,us-east-1b --node-count=2 --node-size=t3.small --control-plane-size=t2.micro --dns-zone=kt8dns.awsdevops.xyz --node-volume-size=12 --control-plane-volume-size=12 --ssh-public-key ~/.ssh/id_ed25519.pub
+	b. Route 53 for DNS "kt8dns"
+	c. kops update cluster --name=kt8dns.awsdevops.xyz --state=s3://kubbucketstate --yes --admin
+	d. install helm
+		a. cd /tmp/
+		b. wget https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz
+		c. tar xvzf helm-v3.16.3-linux-amd64.tar.gz	//extract zip file
+		d. cd linux-amd64
+		e. mv helm /usr/local/bin/helm
+		d. helm --help // veriifcation of helm installtion
+		e. Create github repository "cicd-kt8-docker"
+			git clone https://github.com/lamebits/cicd-kt8-docker.git
+			git clone https://github.com/devopshydclub/vprofile-project.git
+		f. cd vprofile-project
+		g. git checkout vp-docker  // switch to vp-docker branch
+		h. cp -r /root/vprofile-project/* /home/ubuntu/cicd-kt8-docker/
+		i. chown -R ubuntu:ubuntu /home/ubuntu/cicd-kt8-docker/
+		j. cd cicd-kt8-docker
+		k. rm -rf Docker-web Docker-db compose ansible
+		l. mv Docker-app/Dockerfile .
+		m. Open Dockerfile	
+			FROM openjdk:11 AS BUILD_IMAGE
+			RUN apt update && apt install maven -y
+			RUN git clone https://github.com/devopshydclub/vprofile-project.git
+			RUN cd vprofile-project && git checkout docker && mvn install
+
+			FROM tomcat:9-jre11
+
+			RUN rm -rf /usr/local/tomcat/webapps/*
+
+			COPY --from=BUILD_IMAGE vprofile-project/target/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
+
+			EXPOSE 8080
+			CMD ["catalina.sh", "run"]
+		n. mkdir helm in current directory cicd-kt8-docker
+		o. helm create vprofilecharts
+		p. goto template folder and remove all default templates.
+		q. cp kubernetes/vpro-app/* helm/vprofilecharts/templates/
+		r. change docker image name {{.Values.appimage}} in vproappdep.yml
+		s. kubectl create namespace test
+		t. helm install --namespace test vprofile-stack helm/vprofilecharts --set appimage=imranvisualpath/vproappdock:9
+		   helm install --namesapce <namesapcename> <name> helm/vprofilecharts --set appimage=<vprofileimagename>
+		u. helm list --namespace test
+		v. kubectl get all --namespace test
+		w. helm delete vprofilecharts --namespace test
+		x. git add .
+		y. git commit -m "hel chart"
+		z. git push origin main
+
+10. Create Jenkinfile Pipeline Code
+		pipeline {
+
+    agent any
+/*
+	tools {
+        maven "maven3"
+    }
+*/
+    environment {
+        registry = "meenalmate/vproappdock" //dockerhub username
+        registryCredential = 'dockerhub' //jenkins credential name of dockerhub
+    }
+
+    stages{
+
+        stage('BUILD'){
+            steps {
+                sh 'mvn clean install -DskipTests'
+            }
+            post {
+                success {
+                    echo 'Now Archiving...'
+                    archiveArtifacts artifacts: '**/target/*.war'
+                }
+            }
+        }
+
+        stage('UNIT TEST'){
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('INTEGRATION TEST'){
+            steps {
+                sh 'mvn verify -DskipUnitTests'
+            }
+        }
+
+        stage ('CODE ANALYSIS WITH CHECKSTYLE'){
+            steps {
+                sh 'mvn checkstyle:checkstyle'
+            }
+            post {
+                success {
+                    echo 'Generated Analysis Result'
+                }
+            }
+        }
+
+        stage('CODE ANALYSIS with SONARQUBE') {
+
+            environment {
+                scannerHome = tool 'mysonarscanner4'
+            }
+
+            steps {
+                withSonarQubeEnv('sonar-pro') {
+                    sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
+                   -Dsonar.projectName=vprofile-repo \
+                   -Dsonar.projectVersion=1.0 \
+                   -Dsonar.sources=src/ \
+                   -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/controllerTest/ \
+                   -Dsonar.junit.reportsPath=target/surefire-reports/ \
+                   -Dsonar.jacoco.reportsPath=target/jacoco.exec \
+                   -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml'''
+                }
+
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Build App Image') {
+          steps {
+            script {
+              dockerImage = docker.build registry + ":V$BUILD_NUMBER"
+            }
+          }
+        }
+
+        stage('Upload Image'){
+          steps{
+            script {
+              docker.withRegistry('', registryCredential) {
+                dockerImage.push("V$BUILD_NUMBER")
+                dockerImage.push('latest')
+              }
+            }
+          }
+        }
+
+        stage('Remove Unused docker image') {
+          steps{
+            sh "docker rmi $registry:V$BUILD_NUMBER"
+          }
+        }
+
+        stage('Kubernetes Deploy') {
+          agent {label 'KOPS'}
+            steps {
+              sh "helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=${registry}:V${BUILD_NUMBER} --namespace prod"
+            }
+        }
+    }
+
+
+}
+
+11. mkdir jenkisn-slave
+12. apt install openjdk-8-jdk -yes
+13. sudo  mkdir /opt/jenkins-slave
+14. sudo chown ubuntu.ubuntu /opt/jenkins-slave -R
+15. Create Node in Jenkins	 [Agent]
+	a. Set kops-key.pem private key
+	b. private ip
+	c. /opt/jenkins-slave
+	d. RLaunch the agent
+16. Create Webhook to communicate SonarQube with jenkins
+	Name : jenkins-webhook
+	url : http://<jenkinsip>:8080/sonarqube-webhook
+17. Create job in Jenkins named aas "kube-cicd" and build it.
+18. kubectl list --namespace prod
+19. kubectl get pods --namespace prod
+20. kubectl describe pod <name>
+21. kubectl get svc --namespace prod
+22. then check External-IP url in browser. 
+
+
+
+
+
+
+	
+
+
+
