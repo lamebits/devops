@@ -1,0 +1,72 @@
+Parameters:
+  NameOfService:
+    Description: The name of the service this stack is to be used for.
+    Type: String
+  InstanceTypeParameter:
+    Description: Enter t2.micro, t2.small, or t2.medium. Default is t2.micro.
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+  KeyName:
+    Description: Name of EC2 Login Key
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  SubnetVpcAMIRegionMap:
+    us-east-1:
+      AMI: ami-0453ec754f44f9a4a
+      VpcId: vpc-0417134449be6d3a7
+      SubnetId: subnet-0fe574f4863589863
+    us-east-2:
+      AMI: ami-0c80e2b6ccb9ad6d1
+      VpcId: vpc-02c0c8a478b1619b2
+      SubnetId: subnet-073f853fa8d493109
+    us-west-1:
+      AMI: ami-038bba9a164eb3dc1
+      VpcId: vpc-04fc3ac4478674979
+      SubnetId: subnet-0509061f3ce2668dc
+
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      KeyName: !Ref KeyName 
+      ImageId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - AMI
+      SubnetId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - SubnetId
+      Tags:
+        - Key: "Name"
+          Value: !Ref NameOfService
+      SecurityGroupIds:
+        - !Ref VprofileSG 
+        
+  VprofileSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow ssh and http from MyIP
+      VpcId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0 
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 106.219.90.137/32   
+Outputs:
+  PrintInstanceInfo:
+    Value: !GetAtt
+      - MyInstance   
+      - PublicDnsName
