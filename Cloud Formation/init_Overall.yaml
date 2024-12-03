@@ -1,0 +1,110 @@
+Parameters:
+  NameOfService:
+    Description: The name of the service this stack is to be used for.
+    Type: String
+  InstanceTypeParameter:
+    Description: Enter t2.micro, t2.small, or t2.medium. Default is t2.micro.
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+  KeyName:
+    Description: Name of EC2 Login Key
+    Type: AWS::EC2::KeyPair::KeyName
+Mappings:
+  SubnetVpcAMIRegionMap:
+    us-east-1:
+      AMI: ami-0453ec754f44f9a4a
+      VpcId: vpc-0417134449be6d3a7
+      SubnetId: subnet-0fe574f4863589863
+    us-east-2:
+      AMI: ami-0c80e2b6ccb9ad6d1
+      VpcId: vpc-02c0c8a478b1619b2
+      SubnetId: subnet-073f853fa8d493109
+    us-west-1:
+      AMI: ami-038bba9a164eb3dc1
+      VpcId: vpc-04fc3ac4478674979
+      SubnetId: subnet-0509061f3ce2668dc
+
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              php: []
+              https: []
+              wget: []
+              unzip: []
+              git: []
+          commands:
+            test:
+              command: "wget https://www.tooplate.com/zip-templates/2121_wave_cafe.zip && unzip 2121_wave_cafe.zip && cp -r 2121_wave_cafe/* /var/www/html/"
+          files:
+            /var/www/html/hello.html:
+              content: !Sub |
+                <!DOCTYPE HTML>
+                <html>
+                <body>
+                <h1>Welcome to CloudFormation</h1>
+                <p>This site is deployed by CloudFormation.</p>
+                </body>
+                </html>
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+    Properties:
+      InstanceType: !Ref InstanceTypeParameter
+      KeyName: !Ref KeyName 
+      ImageId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - AMI
+      SubnetId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - SubnetId
+      Tags:
+        - Key: "Name"
+          Value: !Ref NameOfService
+      SecurityGroupIds:
+        - !Ref VprofileSG 
+      UserData:
+        'Fn::Base64':
+          !Sub |
+            #!/bin/bash -x
+            # Ensure CFN Bottstrap is latest
+            yum install -y aws-cfn-bootstrap
+            # Install the files and packages from the metadata
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource MyInstance --region ${AWS::Region}
+            # Signal the status from cfn-init
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource MyInstance --region ${AWS::Region}  
+        
+  VprofileSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow ssh and http from MyIP
+      VpcId: !FindInMap
+        - SubnetVpcAMIRegionMap
+        - !Ref AWS::Region
+        - VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0 
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 106.219.90.137/32   
+Outputs:
+  PrintInstanceInfo:
+    Value: !GetAtt
+      - MyInstance   
+      - PublicDnsName

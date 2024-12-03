@@ -1,0 +1,13 @@
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0453ec754f44f9a4a 
+      SubnetId: subnet-0fe574f4863589863
+      Tags:
+        - Key: "Name"
+          Value: !Join
+            - " "
+            - - "My Instance in"
+              - !Ref AWS::Region
